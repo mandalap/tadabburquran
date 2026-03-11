@@ -22,7 +22,7 @@ export default function CreatorCard({ creator }) {
           <div className="flex flex-col items-center text-center">
             {/* Avatar */}
             <Avatar className="w-20 h-20 md:w-24 md:h-24 border-3 border-gold/20 mb-3 group-hover:border-gold/40 transition-colors">
-              <AvatarImage src={creator.avatar} alt={creator.name} />
+              <AvatarImage src={creator.avatar} alt={ [creator.gelar_depan, creator.name].filter(Boolean).join(" ") } />
               <AvatarFallback className="bg-gold/20 text-gold text-xl font-bold">
                 {creator.name?.charAt(0) || 'K'}
               </AvatarFallback>
@@ -30,7 +30,7 @@ export default function CreatorCard({ creator }) {
 
             {/* Name */}
             <h3 className="font-semibold text-gray-900 text-base mb-1 group-hover:text-gold transition-colors">
-              {creator.name}
+              { [creator.gelar_depan, creator.name].filter(Boolean).join(" ") }
             </h3>
 
             {/* Type Badge */}
