@@ -1,19 +1,28 @@
 import { queryAll, queryOne, query } from '@/lib/db'
 import { auth } from '@/lib/auth'
 
+// generateSlug di luar semua function handler
+function generateSlug(title) {
+  return title
+    .toLowerCase()
+    .trim()
+    .replace(/[^a-z0-9\s-]/g, '')
+    .replace(/\s+/g, '-')
+    .replace(/-+/g, '-')
+    .substring(0, 100)
+}
+
 // GET - Fetch all courses
 export async function GET() {
   try {
     const session = await auth()
-
     if (!session || session.user?.role !== 'admin') {
       return Response.json({ error: 'Unauthorized' }, { status: 401 })
     }
-
     let courses
     try {
       courses = await queryAll(
-        `SELECT id, title, short_description, description, instructor, instructor_title,
+        `SELECT id, title, slug, short_description, description, instructor, instructor_title,
           course_type, course_type_id, category, price, original_price, rating, reviews, students, duration, event_date, cover,
           modules, is_published, created_at, updated_at
          FROM courses
@@ -21,7 +30,7 @@ export async function GET() {
       )
     } catch (error) {
       courses = await queryAll(
-        `SELECT id, title, short_description, description, instructor, instructor_title,
+        `SELECT id, title, slug, short_description, description, instructor, instructor_title,
           category, price, original_price, rating, reviews, students, duration, cover,
           modules, is_published, created_at, updated_at
          FROM courses
@@ -29,8 +38,6 @@ export async function GET() {
       )
       courses = courses.map(course => ({ ...course, event_date: null, course_type: '', course_type_id: null }))
     }
-
-    // Parse instructors JSON for frontend compatibility
     const coursesWithInstructors = courses.map(course => {
       let parsedModules = course.modules || []
       if (typeof parsedModules === 'string') {
@@ -46,7 +53,6 @@ export async function GET() {
         modules: Array.isArray(parsedModules) ? parsedModules : []
       }
     })
-
     return Response.json(coursesWithInstructors)
   } catch (error) {
     console.error('Error fetching courses:', error)
@@ -58,11 +64,9 @@ export async function GET() {
 export async function POST(request) {
   try {
     const session = await auth()
-
     if (!session || session.user?.role !== 'admin') {
       return Response.json({ error: 'Unauthorized' }, { status: 401 })
     }
-
     const body = await request.json()
     const {
       title,
@@ -81,36 +85,34 @@ export async function POST(request) {
       modules = [],
       is_published = true
     } = body
-
     if (!title || !short_description || price === undefined || !instructor) {
       return Response.json({ error: 'Missing required fields' }, { status: 400 })
     }
-
+    // Generate slug dari title
+    const slug = generateSlug(title)
     let course
     try {
       course = await queryOne(
         `INSERT INTO courses (
           title, short_description, description, instructor, instructor_title,
-          course_type, course_type_id, category, price, original_price, duration, event_date, cover, modules, is_published
-        ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15)
+          course_type, course_type_id, category, price, original_price, duration, event_date, cover, modules, is_published, slug
+        ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16)
         RETURNING *`,
         [title, short_description, description, instructor, instructor_title,
-          course_type, course_type_id, category, price, original_price, duration, event_date, cover, JSON.stringify(modules), is_published]
+          course_type, course_type_id, category, price, original_price, duration, event_date, cover, JSON.stringify(modules), is_published, slug]
       )
     } catch (error) {
       course = await queryOne(
         `INSERT INTO courses (
           title, short_description, description, instructor, instructor_title,
-          category, price, original_price, duration, cover, modules, is_published
-        ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12)
+          category, price, original_price, duration, cover, modules, is_published, slug
+        ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13)
         RETURNING *`,
         [title, short_description, description, instructor, instructor_title,
-          category, price, original_price, duration, cover, JSON.stringify(modules), is_published]
+          category, price, original_price, duration, cover, JSON.stringify(modules), is_published, slug]
       )
       course = { ...course, event_date: null, course_type: '', course_type_id: null }
     }
-
-    // Add instructors array to response for frontend compatibility
     let parsedModules = course.modules || []
     if (typeof parsedModules === 'string') {
       try {
@@ -124,7 +126,6 @@ export async function POST(request) {
       instructors: [{ creator_id: null, name: course.instructor, title: course.instructor_title || '' }],
       modules: Array.isArray(parsedModules) ? parsedModules : []
     }
-
     return Response.json(courseWithInstructors, { status: 201 })
   } catch (error) {
     console.error('Error creating course:', error)

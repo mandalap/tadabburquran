@@ -480,7 +480,7 @@ export default function CourseDetailPage() {
       if (course?.slug) {
         router.push(`/checkout/course/${course.slug}`)
       } else {
-        router.push(`/checkout?courseSlug=${params.id}`)
+        router.push(`/checkout?courseSlug=${course.slug || course.id}`)
       }
     }
   }
@@ -861,7 +861,7 @@ export default function CourseDetailPage() {
                       if (course?.slug) {
                         router.push(`/kelas/course-playing/${course.slug}`)
                       } else if (params?.id) {
-                        router.push(`/kelas/course-playing/${params.id}`)
+                        router.push(`/kelas/course-playing/${course.slug || course.id}`)
                       }
                     }}
                     className="w-full bg-gradient-to-r from-green-500 to-green-600 hover:from-green-600 hover:to-green-700 text-white font-semibold text-lg py-4 rounded-xl shadow-lg shadow-green-500/20 transition-all hover:shadow-xl hover:shadow-green-500/30 hover:-translate-y-0.5 flex items-center justify-center gap-2"
