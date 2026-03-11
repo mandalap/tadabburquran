@@ -1,5 +1,4 @@
 'use client'
-
 import { useEffect, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import Navbar from '@/components/Navbar'
@@ -36,6 +35,7 @@ export default function CreatorsPage() {
   const [deleteTarget, setDeleteTarget] = useState(null)
   const [formData, setFormData] = useState({
     name: '',
+    gelar_depan: '',
     slug: '',
     specialty: '',
     title: '',
@@ -81,38 +81,33 @@ export default function CreatorsPage() {
   const generateSlug = (name) => {
     return name
       .toLowerCase()
-      .replace(/[^a-z0-9]+/g, '-')
-      .replace(/(^-|-$)/g, '')
+      .trim()
+      .replace(/[^a-z0-9\s-]/g, '')
+      .replace(/\s+/g, '-')
+      .replace(/-+/g, '-')
+      .replace(/^-+|-+$/g, '')
   }
 
   const handleImageUpload = async (e) => {
     const file = e.target.files?.[0]
     if (!file) return
-
-    // Validate file type
     const allowedTypes = ['image/jpeg', 'image/jpg', 'image/png', 'image/webp']
     if (!allowedTypes.includes(file.type)) {
       toast.error('Hanya file JPG, PNG, dan WebP yang diperbolehkan')
       return
     }
-
-    // Validate file size (5MB)
     if (file.size > 5 * 1024 * 1024) {
       toast.error('Ukuran file maksimal 5MB')
       return
     }
-
     setUploading(true)
-
     try {
       const uploadFormData = new FormData()
       uploadFormData.append('file', file)
-
       const response = await fetch('/api/admin/creators/upload', {
         method: 'POST',
         body: uploadFormData
       })
-
       if (response.ok) {
         const data = await response.json()
         setFormData(prev => ({ ...prev, avatar: data.url }))
@@ -134,7 +129,7 @@ export default function CreatorsPage() {
     setFormData({
       ...formData,
       name,
-      slug: editingCreator ? formData.slug : generateSlug(name)
+      slug: generateSlug(name)
     })
   }
 
@@ -142,8 +137,6 @@ export default function CreatorsPage() {
     e.preventDefault()
     setLoading(true)
     setSaving(true)
-
-    // Check featured count
     const featuredCount = creators.filter(c => c.is_featured).length
     if (formData.is_featured && !editingCreator && featuredCount >= 5) {
       toast.error('Maksimal 5 kreator featured!')
@@ -157,20 +150,16 @@ export default function CreatorsPage() {
       setSaving(false)
       return
     }
-
     try {
       const url = editingCreator
         ? `/api/admin/creators/${editingCreator.id}`
         : '/api/admin/creators'
-
       const method = editingCreator ? 'PUT' : 'POST'
-
       const response = await fetch(url, {
         method,
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(formData)
       })
-
       if (response.ok) {
         setShowForm(false)
         setEditingCreator(null)
@@ -194,6 +183,7 @@ export default function CreatorsPage() {
     setEditingCreator(creator)
     setFormData({
       name: creator.name,
+      gelar_depan: creator.gelar_depan || '',
       slug: creator.slug,
       specialty: creator.specialty || '',
       title: creator.title || '',
@@ -218,9 +208,7 @@ export default function CreatorsPage() {
   const handleDelete = async (id) => {
     setDeletingId(id)
     try {
-      const response = await fetch(`/api/admin/creators/${id}`, {
-        method: 'DELETE'
-      })
+      const response = await fetch(`/api/admin/creators/${id}`, { method: 'DELETE' })
       if (response.ok) {
         fetchCreators()
         toast.success('Kreator berhasil dihapus!')
@@ -242,7 +230,6 @@ export default function CreatorsPage() {
       toast.error('Maksimal 5 kreator featured!')
       return
     }
-
     try {
       const response = await fetch(`/api/admin/creators/${id}`, {
         method: 'PATCH',
@@ -285,6 +272,7 @@ export default function CreatorsPage() {
   const resetForm = () => {
     setFormData({
       name: '',
+      gelar_depan: '',
       slug: '',
       specialty: '',
       title: '',
@@ -332,6 +320,7 @@ export default function CreatorsPage() {
       <Navbar />
       <section className="pt-24 pb-12">
         <div className="container mx-auto px-4">
+
           {/* Header */}
           <div className="flex justify-between items-center mb-6">
             <div>
@@ -339,18 +328,11 @@ export default function CreatorsPage() {
               <p className="text-gray-600">Tambah, edit, dan kelola kreator instruktur</p>
             </div>
             <div className="flex gap-3">
-              <Button
-                onClick={() => router.push('/admin')}
-                variant="outline"
-                className="border-gray-300 text-gray-700 hover:bg-gray-50"
-              >
+              <Button onClick={() => router.push('/admin')} variant="outline" className="border-gray-300 text-gray-700 hover:bg-gray-50">
                 Kembali
               </Button>
               {!showForm && (
-                <Button
-                  onClick={() => setShowForm(true)}
-                  className="bg-blue-600 text-white hover:bg-blue-700"
-                >
+                <Button onClick={() => setShowForm(true)} className="bg-blue-600 text-white hover:bg-blue-700">
                   + Tambah Kreator
                 </Button>
               )}
@@ -395,32 +377,38 @@ export default function CreatorsPage() {
               </CardHeader>
               <CardContent>
                 <form onSubmit={handleSubmit} className="space-y-4">
+
+                  {/* Row 1: Nama + Slug preview */}
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                     <div>
-                      <Label htmlFor="name">Nama Lengkap *</Label>
+                      <Label htmlFor="name">
+                        Nama Lengkap * <span className="text-xs text-gray-400 font-normal">(tanpa gelar)</span>
+                      </Label>
                       <Input
                         id="name"
                         value={formData.name}
                         onChange={handleNameChange}
                         required
                         className="bg-white"
-                        placeholder="Contoh: Ust. Abdullah Yusuf"
+                        placeholder="Contoh: Abdullah Yusuf (tanpa gelar)"
                       />
                     </div>
                     <div>
-                      <Label htmlFor="slug">Slug *</Label>
+                      <Label>
+                        Slug <span className="text-xs text-gray-400 font-normal">(otomatis dari nama)</span>
+                      </Label>
                       <Input
-                        id="slug"
-                        value={formData.slug}
-                        onChange={(e) => setFormData({...formData, slug: e.target.value})}
-                        required
-                        className="bg-white"
-                        placeholder="abdullah-yusuf"
+                        value={formData.name ? generateSlug(formData.name) : ''}
+                        readOnly
+                        className="bg-gray-100 text-gray-500 cursor-not-allowed"
+                        placeholder="otomatis dari nama"
                       />
+                      <p className="text-xs text-gray-400 mt-1">Generate otomatis dari nama, tanpa gelar</p>
                     </div>
                   </div>
 
-                  <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                  {/* Row 2: Tipe Kreator + Specialty */}
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                     <div>
                       <Label htmlFor="creator_type">Tipe Kreator *</Label>
                       <select
@@ -447,29 +435,41 @@ export default function CreatorsPage() {
                         placeholder="Contoh: Tahfidz, Tajwid"
                       />
                     </div>
+                  </div>
+
+                  {/* Row 3: Gelar Depan + Gelar Belakang */}
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                     <div>
-                      <Label htmlFor="title">Gelar/Title</Label>
+                      <Label htmlFor="gelar_depan">Gelar Depan</Label>
+                      <Input
+                        id="gelar_depan"
+                        value={formData.gelar_depan}
+                        onChange={(e) => setFormData({...formData, gelar_depan: e.target.value})}
+                        className="bg-white"
+                        placeholder="Contoh: KH., Prof. Dr., Habib, Ust."
+                      />
+                      <p className="text-xs text-gray-400 mt-1">Gelar sebelum nama</p>
+                    </div>
+                    <div>
+                      <Label htmlFor="title">Gelar Belakang</Label>
                       <Input
                         id="title"
                         value={formData.title}
                         onChange={(e) => setFormData({...formData, title: e.target.value})}
                         className="bg-white"
-                        placeholder="Contoh: Lc., M.A., Ust."
+                        placeholder="Contoh: Lc., M.A., S.H., M.Pd."
                       />
+                      <p className="text-xs text-gray-400 mt-1">Gelar setelah nama</p>
                     </div>
                   </div>
 
-                  {/* Image Upload Section */}
+                  {/* Image Upload */}
                   <div>
                     <Label>Upload Foto / Avatar</Label>
                     <div className="mt-2 flex items-center gap-4">
                       {formData.avatar && (
                         <div className="relative w-20 h-20">
-                          <img
-                            src={formData.avatar}
-                            alt="Preview"
-                            className="w-20 h-20 rounded-full object-cover border-2 border-gray-200"
-                          />
+                          <img src={formData.avatar} alt="Preview" className="w-20 h-20 rounded-full object-cover border-2 border-gray-200" />
                           {uploading && (
                             <div className="absolute inset-0 rounded-full bg-black/30 flex items-center justify-center">
                               <span className="w-6 h-6 border-2 border-white/80 border-t-transparent rounded-full animate-spin" />
@@ -496,13 +496,10 @@ export default function CreatorsPage() {
                         )}
                       </div>
                     </div>
-                    <Input
-                      type="hidden"
-                      value={formData.avatar}
-                      onChange={(e) => setFormData({...formData, avatar: e.target.value})}
-                    />
+                    <Input type="hidden" value={formData.avatar} onChange={(e) => setFormData({...formData, avatar: e.target.value})} />
                   </div>
 
+                  {/* Bio */}
                   <div>
                     <Label htmlFor="bio">Bio Singkat</Label>
                     <Textarea
@@ -515,6 +512,7 @@ export default function CreatorsPage() {
                     />
                   </div>
 
+                  {/* Stats */}
                   <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
                     <div>
                       <Label htmlFor="rating">Rating (0-5)</Label>
@@ -564,6 +562,7 @@ export default function CreatorsPage() {
                     </div>
                   </div>
 
+                  {/* Sosial + Urutan */}
                   <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                     <div>
                       <Label htmlFor="sort_order">Urutan Tampil</Label>
@@ -598,6 +597,7 @@ export default function CreatorsPage() {
                     </div>
                   </div>
 
+                  {/* Checkboxes */}
                   <div className="flex flex-wrap gap-4">
                     <div className="flex items-center gap-2">
                       <input
@@ -607,9 +607,7 @@ export default function CreatorsPage() {
                         onChange={(e) => setFormData({...formData, is_featured: e.target.checked})}
                         className="w-4 h-4"
                       />
-                      <Label htmlFor="is_featured" className="cursor-pointer">
-                        ⭐ Featured (Tampil di Dashboard, max 5)
-                      </Label>
+                      <Label htmlFor="is_featured" className="cursor-pointer">⭐ Featured (Tampil di Dashboard, max 5)</Label>
                     </div>
                     <div className="flex items-center gap-2">
                       <input
@@ -619,9 +617,7 @@ export default function CreatorsPage() {
                         onChange={(e) => setFormData({...formData, is_top_creator: e.target.checked})}
                         className="w-4 h-4"
                       />
-                      <Label htmlFor="is_top_creator" className="cursor-pointer">
-                        🏆 Top Creator (Bintang Emas)
-                      </Label>
+                      <Label htmlFor="is_top_creator" className="cursor-pointer">🏆 Top Creator (Bintang Emas)</Label>
                     </div>
                     <div className="flex items-center gap-2">
                       <input
@@ -635,6 +631,7 @@ export default function CreatorsPage() {
                     </div>
                   </div>
 
+                  {/* Actions */}
                   <div className="flex gap-3">
                     <Button type="submit" className="bg-blue-600 text-white hover:bg-blue-700" disabled={saving}>
                       <span className="flex items-center gap-2">
@@ -642,10 +639,9 @@ export default function CreatorsPage() {
                         <span>{saving ? 'Menyimpan...' : (editingCreator ? 'Update' : 'Simpan')}</span>
                       </span>
                     </Button>
-                    <Button type="button" variant="outline" onClick={handleCancel}>
-                      Batal
-                    </Button>
+                    <Button type="button" variant="outline" onClick={handleCancel}>Batal</Button>
                   </div>
+
                 </form>
               </CardContent>
             </Card>
@@ -665,9 +661,7 @@ export default function CreatorsPage() {
                         <Skeleton className="h-3 w-1/3" />
                       </div>
                     </div>
-                    <div className="mt-4 flex gap-2">
-                      <Skeleton className="h-8 w-full" />
-                    </div>
+                    <div className="mt-4 flex gap-2"><Skeleton className="h-8 w-full" /></div>
                   </CardContent>
                 </Card>
               ))}
@@ -681,15 +675,14 @@ export default function CreatorsPage() {
           ) : (
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
               {creators.map((creator) => (
-                <Card key={creator.id} className={`border-gray-200 hover:shadow-md transition-shadow ${!creator.is_active ? 'opacity-60' : ''} ${creator.is_top_creator ? 'ring-2 ring-amber-400' : ''}`}>
+                <Card
+                  key={creator.id}
+                  className={`border-gray-200 hover:shadow-md transition-shadow ${!creator.is_active ? 'opacity-60' : ''} ${creator.is_top_creator ? 'ring-2 ring-amber-400' : ''}`}
+                >
                   <CardContent className="pt-4">
                     <div className="flex items-start gap-4">
                       {creator.avatar ? (
-                        <img
-                          src={creator.avatar}
-                          alt={creator.name}
-                          className="w-16 h-16 rounded-full object-cover border-2 border-gray-200"
-                        />
+                        <img src={creator.avatar} alt={creator.name} className="w-16 h-16 rounded-full object-cover border-2 border-gray-200" />
                       ) : (
                         <div className="w-16 h-16 rounded-full bg-gradient-to-br from-blue-500 to-purple-500 flex items-center justify-center text-white text-xl font-bold">
                           {creator.name?.charAt(0) || 'K'}
@@ -697,13 +690,17 @@ export default function CreatorsPage() {
                       )}
                       <div className="flex-1">
                         <div className="flex items-center gap-2 flex-wrap">
-                          <h3 className="font-semibold text-gray-900">{creator.name}</h3>
+                          <h3 className="font-semibold text-gray-900">
+                            {[creator.gelar_depan, creator.name].filter(Boolean).join(' ')}
+                          </h3>
                           {creator.is_top_creator && <span className="text-amber-500">🏆</span>}
                           <span className="text-xs bg-gray-100 text-gray-600 px-2 py-0.5 rounded capitalize">
                             {creator.creator_type || 'ustadz'}
                           </span>
                         </div>
-                        <p className="text-sm text-gray-600">{creator.title} {creator.specialty && `• ${creator.specialty}`}</p>
+                        <p className="text-sm text-gray-600">
+                          {[creator.title].filter(Boolean).join('')}{creator.specialty && ` • ${creator.specialty}`}
+                        </p>
                         <div className="flex items-center gap-1 mt-1">
                           {renderStars(creator.rating || 0)}
                           <span className="text-xs text-gray-500 ml-1">({creator.reviews || 0})</span>
@@ -716,17 +713,9 @@ export default function CreatorsPage() {
                     )}
 
                     <div className="flex gap-2 mt-3 text-xs">
-                      <span className="bg-blue-100 text-blue-800 px-2 py-1 rounded">
-                        {creator.courses_count || 0} Kelas
-                      </span>
-                      <span className="bg-green-100 text-green-800 px-2 py-1 rounded">
-                        {(creator.students_count || 0).toLocaleString()} Siswa
-                      </span>
-                      {creator.is_featured && (
-                        <span className="bg-yellow-100 text-yellow-800 px-2 py-1 rounded">
-                          ⭐ Featured
-                        </span>
-                      )}
+                      <span className="bg-blue-100 text-blue-800 px-2 py-1 rounded">{creator.courses_count || 0} Kelas</span>
+                      <span className="bg-green-100 text-green-800 px-2 py-1 rounded">{(creator.students_count || 0).toLocaleString()} Siswa</span>
+                      {creator.is_featured && <span className="bg-yellow-100 text-yellow-800 px-2 py-1 rounded">⭐ Featured</span>}
                     </div>
 
                     <div className="flex gap-2 mt-4">
@@ -757,10 +746,7 @@ export default function CreatorsPage() {
                       <Button
                         size="sm"
                         variant="outline"
-                        onClick={() => {
-                          setDeleteTarget(creator)
-                          setDeleteDialogOpen(true)
-                        }}
+                        onClick={() => { setDeleteTarget(creator); setDeleteDialogOpen(true) }}
                         className="border-red-300 text-red-600 hover:bg-red-50"
                         disabled={deletingId === creator.id}
                       >
@@ -769,9 +755,7 @@ export default function CreatorsPage() {
                             <span className="w-3.5 h-3.5 border-2 border-red-400 border-t-transparent rounded-full animate-spin" />
                             <span>Menghapus...</span>
                           </span>
-                        ) : (
-                          'Hapus'
-                        )}
+                        ) : 'Hapus'}
                       </Button>
                     </div>
                   </CardContent>
@@ -779,8 +763,10 @@ export default function CreatorsPage() {
               ))}
             </div>
           )}
+
         </div>
       </section>
+
       <AlertDialog open={deleteDialogOpen} onOpenChange={setDeleteDialogOpen}>
         <AlertDialogContent>
           <AlertDialogHeader>
@@ -793,9 +779,7 @@ export default function CreatorsPage() {
             <AlertDialogCancel onClick={() => setDeleteTarget(null)}>Batal</AlertDialogCancel>
             <AlertDialogAction
               onClick={() => {
-                if (deleteTarget?.id) {
-                  handleDelete(deleteTarget.id)
-                }
+                if (deleteTarget?.id) { handleDelete(deleteTarget.id) }
                 setDeleteDialogOpen(false)
                 setDeleteTarget(null)
               }}
@@ -806,6 +790,7 @@ export default function CreatorsPage() {
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
+
       <Footer />
     </div>
   )

@@ -91,21 +91,51 @@ export async function POST(request) {
        LIMIT 1`,
       [verifiedUser.id, course.id]
     )
-    if (existingPending) {
-      const createdAt = new Date(existingPending.created_at)
-      const diffHours = (Date.now() - createdAt.getTime()) / (1000 * 60 * 60)
-      if (diffHours < 24) {
-        return NextResponse.json(
-          {
-            success: false,
-            error: 'Masih ada transaksi menunggu pembayaran untuk kelas ini',
-            code: 'PENDING_EXISTS',
-            transaction_id: existingPending.transaction_id
-          },
-          { status: 409 }
-        )
-      }
-    }
+
+// ✅ Sekarang — buat snap token baru untuk order yang sama
+if (existingPending) {
+  const createdAt = new Date(existingPending.created_at)
+  const diffHours = (Date.now() - createdAt.getTime()) / (1000 * 60 * 60)
+  if (diffHours < 24) {
+    // Buat snap token baru untuk existing order
+    const snapTransaction = await midtransClient.createTransaction({
+      transaction_details: {
+        order_id: existingPending.transaction_id,
+        gross_amount: course.price || 0,
+      },
+      item_details: [{
+        id: course.id,
+        name: course.title,
+        price: course.price || 0,
+        quantity: 1,
+      }],
+      customer_details: {
+        first_name: verifiedUser.full_name?.split(' ')[0] || 'Customer',
+        email: verifiedUser.email,
+      },
+      callbacks: {
+        finish: `${process.env.NEXT_PUBLIC_APP_URL}/checkout/finish?orderId=${existingPending.transaction_id}&slug=${course.slug}`,
+        error: `${process.env.NEXT_PUBLIC_APP_URL}/checkout/error?orderId=${existingPending.transaction_id}`,
+        pending: `${process.env.NEXT_PUBLIC_APP_URL}/checkout/pending?orderId=${existingPending.transaction_id}`,
+      },
+    })
+
+    return NextResponse.json({
+      success: true,
+      token: snapTransaction.token,
+      redirect_url: snapTransaction.redirect_url,
+      client_key: getClientKey(),
+      order_id: existingPending.transaction_id,
+      reused: true, // flag bahwa ini transaksi lama
+      course: {
+        id: course.id,
+        title: course.title,
+        price: course.price,
+      },
+    })
+  }
+}
+
 
     // Generate unique order ID
     const orderId = generateOrderId(userId || 'guest')
